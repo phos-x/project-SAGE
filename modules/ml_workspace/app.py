@@ -11,15 +11,22 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 class InferenceService:
-    """Encapsulates model loading and inference logic to avoid global state manipulation."""
+    """Encapsulates model loading and inference logic using Lazy Initialization."""
     
     def __init__(self):
         self._model = None
-        self._s3_client = boto3.client('s3')
+        self._s3_client = None  
         
         self.bucket_name = os.environ.get('MODEL_BUCKET')
         self.model_key = os.environ.get('MODEL_KEY', 'model.joblib')
         self.local_path = f'/tmp/{self.model_key}'
+
+    @property
+    def s3_client(self):
+        """Lazy initialization of the Boto3 client."""
+        if self._s3_client is None:
+            self._s3_client = boto3.client('s3')
+        return self._s3_client
 
     def _load_model(self) -> None:
         """Downloads and loads the model into memory. Executes only on cold starts."""
@@ -32,7 +39,7 @@ class InferenceService:
         try:
             if not os.path.exists(self.local_path):
                 logger.info(f"Downloading {self.model_key} from s3://{self.bucket_name}...")
-                self._s3_client.download_file(self.bucket_name, self.model_key, self.local_path)
+                self.s3_client.download_file(self.bucket_name, self.model_key, self.local_path)
             else:
                 logger.info(f"Model file already exists locally at {self.local_path}.")
 
