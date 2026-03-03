@@ -21,7 +21,7 @@ python_unit_tests:
   image: python:3.9-slim  
   script:
     - pip install boto3 joblib scikit-learn pytest
-    - pytest test_app.py
+    - pytest "$CI_PROJECT_DIR/tests/test_app.py"
 
 infrastructure_security_scan:
   stage: security
