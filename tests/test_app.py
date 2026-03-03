@@ -30,8 +30,10 @@ def mock_cloud_dependencies() -> Dict[str, MagicMock]:
          patch('app.os.path.exists') as mock_exists:
          
         mock_model_instance = MagicMock()
-        mock_model_instance.predict.return_value = MOCK_PREDICTION 
+        mock_model_instance.predict.return_value.tolist.return_value = MOCK_PREDICTION 
         mock_joblib.return_value = mock_model_instance
+        
+        app.inference_service._s3_client = None
         
         mock_s3_instance = MagicMock()
         mock_boto.return_value = mock_s3_instance
