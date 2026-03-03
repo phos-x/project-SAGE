@@ -25,7 +25,9 @@ python_unit_tests:
 
 infrastructure_security_scan:
   stage: security
-  image: aquasec/trivy:latest  
+  image: 
+    name: aquasec/trivy:latest
+    entrypoint: [""]
   script:
     - trivy fs . --severity MEDIUM,HIGH,CRITICAL --exit-code 1 --no-progress
 
