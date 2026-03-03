@@ -1,21 +1,31 @@
-image: hashicorp/terraform:latest
+# 1. THE FIX: Override the global Terraform entrypoint so it works in GitLab CI
+image: 
+  name: hashicorp/terraform:latest
+  entrypoint: [""]
 
 stages:
-  - test          
-  - security      
-  - validate     
-  - plan         
-  - apply
+  - test          # Python Unit Tests
+  - security      # Trivy CVE Scans
+  - validate      # Terraform Validate & CFN Lint
+  - plan          # Terraform Plan
+  - apply         # Terraform Apply & CFN Deploy
 
 variables:
   TF_STATE_NAME: default
   TF_CACHE_DIR: "$CI_PROJECT_DIR/.terraform"
-  
+  # Data Platform Variables
+  DATA_STACK_NAME: project-sage-data-platform
+  ENVIRONMENT: dev
+  ALERT_EMAIL: "data-team@yourcompany.com"
+
 cache:
   key: default
   paths:
     - .terraform
 
+# ==========================================
+# STAGE 1 & 2: DEVSECOPS (Test & Scan)
+# ==========================================
 python_unit_tests:
   stage: test
   image: python:3.9-slim  
@@ -31,6 +41,9 @@ infrastructure_security_scan:
   script:
     - trivy fs . --severity MEDIUM,HIGH,CRITICAL --exit-code 1 --no-progress
 
+# ==========================================
+# STAGE 3: VALIDATION
+# ==========================================
 .terraform:
   before_script:
     - terraform init 
@@ -43,14 +56,24 @@ infrastructure_security_scan:
       -backend-config="unlock_method=DELETE" 
       -backend-config="retry_wait_min=5"
 
-format_and_validate:
+terraform_validate:
   extends: .terraform
   stage: validate
   script:
     - terraform fmt -check
     - terraform validate
 
-plan:
+cloudformation_lint:
+  stage: validate
+  image: python:3.9-slim
+  script:
+    - pip install cfn-lint
+    - cfn-lint platform.yaml
+
+# ==========================================
+# STAGE 4: PLAN
+# ==========================================
+terraform_plan:
   extends: .terraform
   stage: plan
   script:
@@ -60,10 +83,28 @@ plan:
       - tfplan
     expire_in: 1 hour
 
-apply:
+# ==========================================
+# STAGE 5: APPLY & DEPLOY (Main Branch Only)
+# ==========================================
+terraform_apply:
   extends: .terraform
   stage: apply
   script:
     - terraform apply -auto-approve tfplan
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+cloudformation_deploy:
+  stage: apply
+  image: 
+    name: amazon/aws-cli:latest
+    entrypoint: [""]
+  script:
+    - >
+      aws cloudformation deploy 
+      --template-file platform.yaml 
+      --stack-name $DATA_STACK_NAME 
+      --parameter-overrides Environment=$ENVIRONMENT AlertEmail=$ALERT_EMAIL 
+      --capabilities CAPABILITY_NAMED_IAM
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

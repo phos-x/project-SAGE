@@ -95,4 +95,55 @@ curl -X POST $(terraform output -raw api_endpoint)/predict \
 
 ---
 
+graph TD
+    %% Define Styles
+    classDef gitops fill:#e24329,stroke:#fca326,stroke-width:2px,color:#fff;
+    classDef terraform fill:#5c4ee5,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef cfn fill:#ff9900,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef aws fill:#ff9900,stroke:#232f3e,stroke-width:2px,color:#232f3e;
+    classDef monitor fill:#d13212,stroke:#fff,stroke-width:2px,color:#fff;
+
+    %% GitOps Pipeline Subgraph
+    subgraph "GitOps DevSecOps Pipeline (GitLab CI/CD)"
+        Dev([Data Scientist / Engineer]) -->|Push/MR| Code[GitLab Repository]
+        Code --> Test[Pytest & Trivy Sec Scan]
+        Test --> Lint[TF Validate & CFN Lint]
+        Lint --> Plan[TF Plan / CFN ChangeSet]
+        Plan --> Merge{Merge to Main?}
+        Merge -- Yes --> Deploy[Automated Deployment]
+    end
+
+    %% MLOps Stack Subgraph
+    subgraph "MLOps Inference Stack (Provisioned by Terraform)"
+        API[API Gateway] -->|REST Request| MLLambda[Lambda Inference Container]
+        MLLambda <-->|Loads Model & O-1 Caching| MLS3[(S3: ML Models & Data)]
+    end
+
+    %% Data Platform Subgraph
+    subgraph "Event-Driven Data Platform (Provisioned by CloudFormation)"
+        Cron[EventBridge Rules] -->|Trigger| IngestLambda[Lambda Ingestor]
+        IngestLambda -->|Writes JSON| RawS3[(S3: Raw Zone)]
+        RawS3 -->|Triggers| SF[Step Functions Orchestrator]
+        SF -->|Runs| Glue[Glue PySpark ETL Job]
+        Glue -->|Saves Parquet| CuratedS3[(S3: Curated Zone)]
+    end
+
+    %% Observability Subgraph
+    subgraph "Observability & Day 2 Operations"
+        IngestLambda -.->|Failure DLQ| SQS[SQS: Dead Letter Queue]
+        SF -.->|Catch & Retry Failures| SNS[SNS: Alerting Topic]
+        CloudWatch((CloudWatch Alarms)) -.-> SNS
+        IngestLambda -.->|Metrics| CloudWatch
+    end
+
+    %% Connecting the layers
+    Deploy ==>|Deploys| API
+    Deploy ==>|Deploys| Cron
+    
+    %% Apply classes
+    class Code,Test,Lint,Plan,Merge,Deploy gitops;
+    class API,MLLambda,MLS3 terraform;
+    class Cron,IngestLambda,RawS3,SF,Glue,CuratedS3 cfn;
+    class SQS,SNS,CloudWatch monitor;
+
 *Developed by phos-x for Platform Engineering & MLOps demonstrations.*
