@@ -1,0 +1,67 @@
+image: hashicorp/terraform:latest
+
+stages:
+  - test          
+  - security      
+  - validate     
+  - plan         
+  - apply
+
+variables:
+  TF_STATE_NAME: default
+  TF_CACHE_DIR: "$CI_PROJECT_DIR/.terraform"
+  
+cache:
+  key: default
+  paths:
+    - .terraform
+
+python_unit_tests:
+  stage: test
+  image: python:3.9-slim  
+  script:
+    - pip install boto3 joblib scikit-learn pytest
+    - pytest test_app.py
+
+infrastructure_security_scan:
+  stage: security
+  image: aquasec/trivy:latest  
+  script:
+    - trivy fs . --severity MEDIUM,HIGH,CRITICAL --exit-code 1 --no-progress
+
+.terraform:
+  before_script:
+    - terraform init 
+      -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}" 
+      -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" 
+      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" 
+      -backend-config="username=gitlab-ci-token" 
+      -backend-config="password=${CI_JOB_TOKEN}" 
+      -backend-config="lock_method=POST" 
+      -backend-config="unlock_method=DELETE" 
+      -backend-config="retry_wait_min=5"
+
+format_and_validate:
+  extends: .terraform
+  stage: validate
+  script:
+    - terraform fmt -check
+    - terraform validate
+
+plan:
+  extends: .terraform
+  stage: plan
+  script:
+    - terraform plan -out=tfplan
+  artifacts:
+    paths:
+      - tfplan
+    expire_in: 1 hour
+
+apply:
+  extends: .terraform
+  stage: apply
+  script:
+    - terraform apply -auto-approve tfplan
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
