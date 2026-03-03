@@ -101,7 +101,7 @@ Resources:
       FunctionName: !Sub 'sage-${Environment}-ingestor'
       Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.9
+      Runtime: python3.14
       Environment:
         Variables:
           RAW_BUCKET: !Ref RawDataBucket

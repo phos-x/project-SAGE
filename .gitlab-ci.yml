@@ -28,7 +28,7 @@ cache:
 # ==========================================
 python_unit_tests:
   stage: test
-  image: python:3.9-slim  
+  image: python:3.14-slim  
   script:
     - pip install boto3 joblib scikit-learn pytest
     - pytest "$CI_PROJECT_DIR/tests/test_app.py"
@@ -65,7 +65,7 @@ terraform_validate:
 
 cloudformation_lint:
   stage: validate
-  image: python:3.9-slim
+  image: python:3.14-slim
   script:
     - pip install cfn-lint
     - cfn-lint platform.yaml

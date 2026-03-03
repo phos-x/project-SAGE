@@ -95,6 +95,7 @@ curl -X POST $(terraform output -raw api_endpoint)/predict \
 
 ---
 
+```mermaid
 graph TD
     %% Define Styles
     classDef gitops fill:#e24329,stroke:#fca326,stroke-width:2px,color:#fff;
@@ -145,5 +146,6 @@ graph TD
     class API,MLLambda,MLS3 terraform;
     class Cron,IngestLambda,RawS3,SF,Glue,CuratedS3 cfn;
     class SQS,SNS,CloudWatch monitor;
+```
 
 *Developed by phos-x for Platform Engineering & MLOps demonstrations.*
