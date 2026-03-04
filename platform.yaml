@@ -160,8 +160,8 @@ Resources:
           "StartAt": "SimulateGlueETL",
           "States": {
             "SimulateGlueETL": {
-              "Type": "Pass",
-              "Result": "Mock ETL Success",
+              "Type": "Task",
+              "Resource": "${IngestionLambda.Arn}",
               "Next": "SuccessState",
               "Catch": [
                 {
