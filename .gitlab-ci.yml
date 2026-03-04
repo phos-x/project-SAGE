@@ -100,11 +100,16 @@ cloudformation_deploy:
     name: amazon/aws-cli:latest
     entrypoint: [""]
   script:
-    - >
-      aws cloudformation deploy 
-      --template-file platform.yaml 
-      --stack-name $DATA_STACK_NAME 
-      --parameter-overrides Environment=$ENVIRONMENT AlertEmail=$ALERT_EMAIL 
-      --capabilities CAPABILITY_NAMED_IAM
+    - |
+      echo "🚀 Starting CloudFormation Deployment..."
+      if ! aws cloudformation deploy --template-file platform.yaml --stack-name $DATA_STACK_NAME --parameter-overrides Environment=$ENVIRONMENT AlertEmail=$ALERT_EMAIL --capabilities CAPABILITY_NAMED_IAM; then
+        echo "❌ Deployment Failed! Fetching error details from AWS..."
+        aws cloudformation describe-stack-events \
+          --stack-name $DATA_STACK_NAME \
+          --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED`].[LogicalResourceId, ResourceStatusReason]' \
+          --output table
+        exit 1
+      fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
