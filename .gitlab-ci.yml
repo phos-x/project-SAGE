@@ -76,6 +76,9 @@ terraform_plan:
 terraform_apply:
   extends: .terraform
   stage: apply
+  variables:
+    TF_HTTP_USERNAME: "gitlab-ci-token"
+    TF_HTTP_PASSWORD: "${CI_JOB_TOKEN}"
   script:
     - terraform apply -auto-approve tfplan
   rules:
