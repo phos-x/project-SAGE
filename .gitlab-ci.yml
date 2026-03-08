@@ -15,7 +15,7 @@ variables:
   TF_CACHE_DIR: "$CI_PROJECT_DIR/.terraform"
   DATA_STACK_NAME: project-sage-data-platform
   ENVIRONMENT: dev
-  ALERT_EMAIL: "data-team@yourcompany.com"
+  ALERT_EMAIL: "adetayoadebayo67@gmail.com"
 
 cache:
   key: default
@@ -45,9 +45,7 @@ infrastructure_security_scan:
     - terraform init -reconfigure
       -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}" 
       -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" 
-      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" 
-      -backend-config="username=gitlab-ci-token" 
-      -backend-config="password=${CI_JOB_TOKEN}" 
+      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock"  
       -backend-config="lock_method=POST" 
       -backend-config="unlock_method=DELETE" 
       -backend-config="retry_wait_min=5"
