@@ -15,7 +15,7 @@ variables:
   TF_CACHE_DIR: "$CI_PROJECT_DIR/.terraform"
   DATA_STACK_NAME: project-sage-data-platform
   ENVIRONMENT: dev
-  ALERT_EMAIL: "data-team@yourcompany.com"
+  ALERT_EMAIL: "adetayoadebayo67@gmail.com"
 
 cache:
   key: default
@@ -38,23 +38,22 @@ infrastructure_security_scan:
     - trivy fs . --severity MEDIUM,HIGH,CRITICAL --exit-code 1 --no-progress
 
 .terraform:
-  before_script:
-    - terraform init -reconfigure
-      -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}" 
-      -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" 
-      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" 
-      -backend-config="username=gitlab-ci-token" 
-      -backend-config="password=${CI_JOB_TOKEN}" 
-      -backend-config="lock_method=POST" 
-      -backend-config="unlock_method=DELETE" 
-      -backend-config="retry_wait_min=5"
+  image: registry.gitlab.com/gitlab-org/terraform-images/releases/1.5:v1.0.0
+  variables:
+    TF_ROOT: ${CI_PROJECT_DIR}
+    TF_STATE_NAME: default
+  cache:
+    key: ${TF_STATE_NAME}
+    paths:
+      - ${TF_ROOT}/.terraform
 
 terraform_validate:
   extends: .terraform
   stage: validate
   script:
-    - terraform fmt -check
-    - terraform validate
+    - gitlab-terraform init
+    - gitlab-terraform validate
+    - gitlab-terraform fmt
 
 cloudformation_lint:
   stage: validate
@@ -67,17 +66,22 @@ terraform_plan:
   extends: .terraform
   stage: plan
   script:
-    - terraform plan -out=tfplan
+    - gitlab-terraform init
+    - gitlab-terraform plan
+    - gitlab-terraform plan-json
   artifacts:
+    name: plan
     paths:
-      - tfplan
-    expire_in: 1 hour
+      - ${TF_ROOT}/plan.cache
+    reports:
+      terraform: ${TF_ROOT}/plan.json
 
 terraform_apply:
-  extends: .terraform
+  extends: .terraform_base
   stage: apply
   script:
-    - terraform apply -auto-approve tfplan
+    - gitlab-terraform init
+    - gitlab-terraform apply
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
