@@ -88,16 +88,40 @@ cloudformation_deploy:
     entrypoint: [""]
   script:
     - |
+      echo "🔍 Inspecting AWS for existing stack state..."
+      
+      STACK_STATUS=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+      echo "Current Stack Status $STACK_STATUS"
+
+      if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ]; then
+        echo "⚠️ Detected ROLLBACK_COMPLETE. Automatically deleting dead stack..."
+        aws cloudformation delete-stack --stack-name $DATA_STACK_NAME
+        aws cloudformation wait stack-delete-complete --stack-name $DATA_STACK_NAME
+        echo "✅ Dead stack successfully purged."
+      fi
+
       echo "🚀 Starting CloudFormation Deployment..."
-      aws cloudformation delete-stack --stack-name $DATA_STACK_NAME
-      if ! aws cloudformation deploy --template-file platform.yaml --stack-name $DATA_STACK_NAME --parameter-overrides Environment=$ENVIRONMENT AlertEmail=$ALERT_EMAIL --capabilities CAPABILITY_NAMED_IAM; then
-        echo "❌ Deployment Failed! Fetching error details from AWS..."
-        aws cloudformation describe-stack-events \
-          --stack-name $DATA_STACK_NAME \
-          --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED`].[LogicalResourceId, ResourceStatusReason]' \
-          --output table
+      if ! aws cloudformation deploy \
+        --template-file platform.yaml \
+        --stack-name $DATA_STACK_NAME \
+        --parameter-overrides Environment=$ENVIRONMENT AlertEmail=$ALERT_EMAIL \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --no-fail-on-empty-changeset; then
+        
+        echo "❌ Deployment Failed!"
+        
+        if aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME >/dev/null 2>&1; then
+          echo "Fetching AWS failure events:"
+          aws cloudformation describe-stack-events \
+            --stack-name $DATA_STACK_NAME \
+            --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED`].[LogicalResourceId, ResourceStatusReason]' \
+            --output table
+        else
+          echo "AWS rejected the deployment before creating the stack (Likely a template syntax or IAM permission error)."
+        fi
         exit 1
       fi
+
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
