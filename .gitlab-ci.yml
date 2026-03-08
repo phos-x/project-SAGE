@@ -13,7 +13,6 @@ stages:
 variables:
   TF_STATE_NAME: default
   TF_CACHE_DIR: "$CI_PROJECT_DIR/.terraform"
-  # Data Platform Variables
   DATA_STACK_NAME: project-sage-data-platform
   ENVIRONMENT: dev
   ALERT_EMAIL: "data-team@yourcompany.com"
@@ -23,9 +22,6 @@ cache:
   paths:
     - .terraform
 
-# ==========================================
-# STAGE 1 & 2: DEVSECOPS (Test & Scan)
-# ==========================================
 python_unit_tests:
   stage: test
   image: python:3.14-slim  
@@ -41,9 +37,6 @@ infrastructure_security_scan:
   script:
     - trivy fs . --severity MEDIUM,HIGH,CRITICAL --exit-code 1 --no-progress
 
-# ==========================================
-# STAGE 3: VALIDATION
-# ==========================================
 .terraform:
   before_script:
     - terraform init -reconfigure
@@ -70,9 +63,6 @@ cloudformation_lint:
     - pip install cfn-lint
     - cfn-lint platform.yaml
 
-# ==========================================
-# STAGE 4: PLAN
-# ==========================================
 terraform_plan:
   extends: .terraform
   stage: plan
@@ -83,9 +73,6 @@ terraform_plan:
       - tfplan
     expire_in: 1 hour
 
-# ==========================================
-# STAGE 5: APPLY & DEPLOY (Main Branch Only)
-# ==========================================
 terraform_apply:
   extends: .terraform
   stage: apply
@@ -102,6 +89,7 @@ cloudformation_deploy:
   script:
     - |
       echo "🚀 Starting CloudFormation Deployment..."
+      aws cloudformation delete-stack --stack-name $DATA_STACK_NAME
       if ! aws cloudformation deploy --template-file platform.yaml --stack-name $DATA_STACK_NAME --parameter-overrides Environment=$ENVIRONMENT AlertEmail=$ALERT_EMAIL --capabilities CAPABILITY_NAMED_IAM; then
         echo "❌ Deployment Failed! Fetching error details from AWS..."
         aws cloudformation describe-stack-events \
